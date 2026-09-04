@@ -80,16 +80,13 @@ class FFN(nn.Module):
         y = self.network(x)
         return y
 
-class Transformer(nn.Module):
+class TransformerBlock(nn.Module):
     def __init__(self, dmodel=512, dff=2048, nheads=8, vocab_size=2048, max_seq_length=128):
         super(Transformer, self).__init__()
-        self.embeddings = nn.Embedding(vocab_size, dmodel)
-        self.pos_encoddings = PositionalEncoding(dmodel, max_seq_length)
         self.MultiHeadAttention = MultiHeadAttention(dmodel, nheads)
         self.FFN = FFN(dmodel, dff)
         self.norm1 = nn.LayerNorm(dmodel)
         self.norm2 = nn.LayerNorm(dmodel)
-        self.projections = nn.Linear(dmodel, vocab_size)
 
     def forward(self, x):
         x = self.embeddings(x)
@@ -97,7 +94,25 @@ class Transformer(nn.Module):
         attention = self.MultiHeadAttention(x)
         y1 = self.norm1(x + attention)
         y2 = self.FFN(y1)
-        y3 = self.norm2(y1 + y2)
-        y4 = self.projections(y3)
-        y = y4[:,-1,:]
+        y = self.norm2(y1 + y2)
         return y
+
+class Transformer(nn.Module):
+    def __init__(self, num_layers=1,dmodel=512, dff=2048, nheads=8, vocab_size=2048, max_seq_length=128):
+        super(Transformer, self).__init__()
+        self.embeddings = nn.Embedding(vocab_size, dmodel)
+        self.pos_encoddings = PositionalEncoding(dmodel, max_seq_length)
+        self.layers = nn.ModuleList([TransformerBlock(dmodel,dff,nheads,vocab_size,max_seq_length) for _ in range(num_layers)])
+        self.projections = nn.Linear(dmodel, vocab_size)
+
+    def forward(self, x):
+        x = self.embeddings(x)
+        x = self.pos_encoddings(x)
+        y = x
+
+        for layer in self.layers:
+            y = layer(y)
+
+        y = self.projections(y)
+        y = y[:,-1,:]
+        return y    
