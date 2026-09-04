@@ -72,15 +72,15 @@ def train(name="transformer"):
 
     
 
-def generate(model,text, SeqLength, name="transformer"):
+def generate(model,text, SeqLength=128, name="transformer"):
     model.eval()
-    context = torch.tensor([char2idx.get(c,0) for c in text])
+    context = torch.tensor([char2idx.get(c,0) for c in text]).to(device)
     outtext = ""
 
     for c in range(SeqLength):
         logits = model(context[-seq_len:])
         probs = functional.softmax(logits, dim=-1)
-        idx = probs.argmax()
+        idx = probs.argmax().unsqueeze(0).to(device)
         context = torch.cat((context[1:], idx)) #LEFT SHIFT and ADD NEW GENERATED CHARACTER IN CONTEXT
         outtext += idx2char.get(idx.item())
 
