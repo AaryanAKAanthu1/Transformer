@@ -5,24 +5,43 @@ import torch.nn as nn
 import torch.nn.functional as functional
 import math
 from datasets import load_dataset
+import pickle
+import os
 
 dmodel = 256
 dff = 2048
 nheads=8
 device = torch.device("cuda") if torch.cuda.is_available() else "cpu"
-
-dataset = load_dataset("PLMFSANA/thy-shakespeare")['train']['text']
+datasetmap = {1:"HuggingFaceFW/fineweb", 2:"PLMFSANA/thy-shakespeare"}
+choice = int(input("Select the appropriate dataset for training.\n1.fineweb\n2.shakespeare\nChoice: "))
+dataset = load_dataset(datasetmap.get(choice, 1))['train']['text']
 texts = "\n".join(dataset).lower()
-vocab = sorted(set(texts))
+VOCABPATH = ""
+
+if os.path.exists(VOCABPATH):
+    print("Loading Existing Vocabulary...")
+    with open(VOCABPATH, "rb") as f:
+        vocab_data = pickle.load(f)
+        vocab = vocab_data["vocab"]
+        char2idx = vocab_data["char2idx"]
+        idx2char = vocab_data["idx2char"]
+else:
+    print("Generating and Storing the Vocabulary...")
+    vocab = sorted(set(texts))
+    char2idx = {c:i for i,c in enumerate(vocab)}
+    idx2char = {i:c for c,i in char2idx.items()}
+    vocab_data = {"vocab" : vocab, "char2idx" : char2idx, "idx2char" : idx2char}
+
+    with open(VOCABPATH, "wb") as f:
+        pickle.dump(vocab_data, VOCABPATH)
+
 batch_size = 256
 seq_len = 128
 step_size = 1
-char2idx = {c:i for i,c in enumerate(vocab)}
-idx2char = {i:c for c,i in char2idx.items()}
 data = [(texts[i:i+seq_len],texts[i+seq_len]) for i in range(0, len(texts) - seq_len, step_size)]
 
 def train(name="transformer"):
-    model = Transformer(dmodel,dff, nheads, vocab_size=len(vocab), max_seq_length=seq_len).to(device)
+    model = Transformer(num_layers=3,dmodel=dmodel,dff=dff, nheads=nheads, vocab_size=len(vocab), max_seq_length=seq_len).to(device)
     warmup_steps = 4000
     criterion = nn.CrossEntropyLoss()
     prevloss = 100
